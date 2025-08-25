@@ -1,0 +1,118 @@
+---
+
+- name: Deploy cvmfs client
+  block:
+
+    - name: Add key for the cvmfs apt repository
+      ansible.builtin.get_url:
+        url: "{{ cvmfs_client_apt_repo_url }}/cernvm.gpg"
+        dest: /etc/apt/trusted.gpg.d/cvmfs.gpg
+        mode: '0644'
+        force: true
+
+    - name: Configure cvmfs apt repository
+      ansible.builtin.apt_repository:
+        repo: "deb {{ cvmfs_client_apt_repo_url }} {{ ansible_distribution_release }}-prod main"
+        filename: "cvmfs"
+        state: present
+
+    - name: Install the cvmfs client
+      ansible.builtin.apt:
+        name:
+          - autofs
+          - cvmfs
+        cache_valid_time: 600
+
+    - name: Deploy /etc/cvmfs/default.local
+      ansible.builtin.copy:
+        dest: /etc/cvmfs/default.local
+        owner: root
+        group: root
+        mode: "0644"
+        content: "{{ cvmfs_client_default_config }}"
+      notify: Execute cvmfs_config setup
+
+
+- name: Configure cvmfs repo bio.data.computecanada.ca
+  tags: bio.data.computecanada
+  block:
+
+    - name: Create folder /etc/cvmfs/keys/computecanada.ca/
+      ansible.builtin.file:
+        path: /etc/cvmfs/keys/computecanada.ca/
+        state: directory
+        owner: root
+        group: root
+        mode: '0755'
+
+    - name: Deploy public key for computecanada.ca
+      ansible.builtin.copy:
+        dest: /etc/cvmfs/keys/computecanada.ca/computecanada.ca.pub
+        owner: root
+        group: root
+        mode: '0644'
+        content: |
+          -----BEGIN PUBLIC KEY-----
+          MIIBIjANBgkqhkiG9w0BAQEFAAOCAQ8AMIIBCgKCAQEAywoR5f8l7uLEoNCUEHJs
+          x2apjPGeRenhqkCy/8jiOhbD6mPg0KDxNEJ9srBIETKPwvbeSxz8yUMKnvTl7Zby
+          QMs1a6/AmJI9OnaiaHb24PVbdgqcsAGTCrWFvli73cRRznC3BhOUooupC3SUjO4w
+          FSmLY/W9d2UsVs3hiOkpw9npYEhWj7cN7tPY2F3K5skRDxXAckWZ+5UcG3U/lCA6
+          ThFUDyqwsfcVNDaMLSyDA+aiAbCQt50npQ2jD6shcm9vMjyBvqPeP0dSA+uEhCGJ
+          jAW/EA2moR23sBogOB20mWayF55D+YmHh4ZttmuRCFlcR2CJou2t8Rd1FUMBHi3A
+          DwIDAQAB
+          -----END PUBLIC KEY-----
+
+    - name: Deploy config file for bio.data.computecanada.ca
+      ansible.builtin.copy:
+        dest: /etc/cvmfs/config.d/bio.data.computecanada.ca.local
+        mode: '0644'
+        content: |
+          CVMFS_KEYS_DIR="/etc/cvmfs/keys/computecanada.ca"
+          CVMFS_USE_GEOAPI=no
+          CVMFS_SERVER_URL="http://cvmfs-s1-bio-arbutus.computecanada.ca:8000/cvmfs/@fqrn@"
+      notify: Execute cvmfs_config setup
+
+- name: Install Lmod dependencies
+  tags: lmod
+  ansible.builtin.apt:
+    name:
+      - lua5.3
+      - lua-term
+      - lua-filesystem
+      - lua-posix
+      - tcl
+
+- name: Deploy /etc/profile.d/soft_stacks.sh
+  tags: soft_stacks_profile
+  ansible.builtin.copy:
+    dest: /etc/profile.d/soft_stacks.sh
+    owner: root
+    group: root
+    mode: "0644"
+    content: "{{ cvmfs_client_soft_stacks_config }}"
+
+# - name: Apply config now   # noqa no-changed-when
+#   ansible.builtin.meta: flush_handlers
+
+# - name: Deploy script to pre-sync computeCanada to local cache
+#   ansible.builtin.copy:
+#     dest: /usr/local/bin/presync-compute-canada.sh
+#     owner: root
+#     group: root
+#     mode: "0755"
+#     content: "{{ cvmfs_client_presync_script }}"
+
+# - name: Execute script to pre-sync computeCanada
+#   become: false  # env modules are not loaded for root user
+#   ansible.builtin.shell: /usr/local/bin/presync-compute-canada.sh
+#   args:
+#     executable: /bin/bash
+#     creates: /var/lib/cvmfs/shared/
+
+# - name: Add cron job to pre-sync computeCanada daily
+#   ansible.builtin.cron:
+#     name: "presync computeCanada to local cache"
+#     hour: "{{ 24 | random(seed=inventory_hostname) }}"
+#     minute: "{{ 60 | random(seed=inventory_hostname) }}"
+#     user: ubuntu
+#     job: "/bin/bash /usr/local/bin/presync-compute-canada.sh &> /dev/null"

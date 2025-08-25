@@ -1,0 +1,5 @@
+---
+
+- name: Execute cvmfs_config setup  # noqa no-changed-when
+  ansible.builtin.command:
+    cmd: cvmfs_config setup

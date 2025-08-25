@@ -1,0 +1,105 @@
+---
+
+cvmfs_client_apt_repo_url: https://cvmrepo.web.cern.ch/cvmrepo/apt
+
+cvmfs_client_default_config: |
+  # ansible managed
+
+  CVMFS_CLIENT_PROFILE=single
+  #CVMFS_CLIENT_PROFILE=custom
+
+  CVMFS_HTTP_PROXY=DIRECT
+  #CVMFS_HTTP_PROXY="http://your-proxy.com:3128"
+
+  # cmvfs quota on local disk limited to 10GB per node
+  CVMFS_QUOTA_LIMIT=10000
+
+  # use the CDN to download files from a closer mirror
+  CVMFS_USE_CDN=yes
+
+  # we restrict access to EESSI and ComputeCanada repos
+  #CVMFS_REPOSITORIES="cvmfs-config.cern.ch,soft.computecanada.ca,software.eessi.io,bio.data.computecanada.ca"
+  #CVMFS_STRICT_MOUNT="yes"
+
+
+cvmfs_client_soft_stacks_config: |
+  # ansible managed
+
+  # function to unset every env var related to lmod/modules
+  # this is required to swap between the different software stacks
+  # as each of them provides their own Lmod installation and custom vars
+  unset-modules-env () {
+          # unload every loaded module to unset all their env vars
+          if [ -n "${MODULEPATH}" ]; then
+            module --force purge
+          fi
+          # unset lmod functions and vars
+          unset -f ml
+          unset -f module
+          unset "${!LMOD@}"
+          unset "${!__LMOD@}"
+          unset "${!MODULE@}"
+          unset "${!_ModuleTable@}"
+          # unset vars specific to ComputeCanada
+          # __Init_Default_Modules is used by ComputeCanada to load default modules.
+          # we unset it to make sure the default modules in computeCanada are loaded
+          # when swapping accross stacks
+          unset __Init_Default_Modules
+          unset CC_CLUSTER
+          unset "${!RSNT@}"
+          # unset vars specific to EESSI
+          unset "${!EESSI@}"
+          unset EPREFIX
+          unset LMOD_RC
+          unset FPATH
+  }
+
+  enable-software-stack-compute-canada () {
+      if [ -f /cvmfs/soft.computecanada.ca/config/profile/bash.sh ]; then
+          # disable the current modules env
+          unset-modules-env
+          # restore PS1 in case EESSI modified it
+          if [ -n "${PS1_BEFORE_EESSI}" ]; then
+            export PS1=${PS1_BEFORE_EESSI}
+          fi
+          # here you can customize the ComputeCanada stack
+          # https://docs.alliancecan.ca/wiki/Accessing_CVMFS#Customizing_your_environment
+          #export RSNT_ARCH=""
+          export RSNT_INTERCONNECT="ethernet"
+          #export RSNT_CUDA_DRIVER_VERSION=""
+          #export LMOD_SYSTEM_DEFAULT_MODULES=""
+          # load ComputeCanada
+          source /cvmfs/soft.computecanada.ca/config/profile/bash.sh
+          #source /cvmfs/soft.computecanada.ca/config/profile/bash.sh &> /dev/null
+          #module load gcc/9.1.0 python/3.8.2 &> /dev/null
+      fi
+    }
+
+  enable-software-stack-eessi () {
+      if [ -f /cvmfs/software.eessi.io/versions/2023.06/init/bash ]; then
+          export PS1_BEFORE_EESSI=${PS1}
+          # disable the current modules env
+          unset-modules-env
+          # load EESSI
+          source /cvmfs/software.eessi.io/versions/2023.06/init/bash
+      fi
+    }
+
+  # by default we enable the EESSI software stack
+  #enable-software-stack-eessi
+
+
+cvmfs_client_presync_script: |
+  #!/bin/bash
+
+  source /etc/profile.d/soft_stacks.sh
+  enable-software-stack-compute-canada
+  module spider &> /dev/null
+
+  RSTUDIO_VERSIONS_NEW="4.4"
+  for i in $RSTUDIO_VERSIONS_NEW; do
+      module load rstudio-server/${i}
+      R --version | head -1
+      rstudio-server version
+      module purge
+  done
