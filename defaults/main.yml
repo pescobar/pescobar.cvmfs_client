@@ -52,6 +52,7 @@ cvmfs_client_soft_stacks_config: |
           unset EPREFIX
           unset LMOD_RC
           unset FPATH
+          unset LD_LIBRARY_PATH
   }
 
   enable-software-stack-compute-canada () {
