@@ -56,7 +56,8 @@ cvmfs_client_soft_stacks_config: |
   }
 
   enable-software-stack-compute-canada () {
-      if [ -f /cvmfs/soft.computecanada.ca/config/profile/bash.sh ]; then
+      #if [ -f /cvmfs/soft.computecanada.ca/config/profile/bash.sh ]; then
+      if timeout 3 stat /cvmfs/soft.computecanada.ca/config/profile/bash.sh > /dev/null 2>&1; then
           # disable the current modules env
           unset-modules-env
           # restore PS1 in case EESSI modified it
@@ -73,16 +74,21 @@ cvmfs_client_soft_stacks_config: |
           source /cvmfs/soft.computecanada.ca/config/profile/bash.sh
           #source /cvmfs/soft.computecanada.ca/config/profile/bash.sh &> /dev/null
           #module load gcc/9.1.0 python/3.8.2 &> /dev/null
+      else
+          echo "CVMFS share /cvmfs/soft.computecanada.ca not mounted"
       fi
     }
 
   enable-software-stack-eessi () {
-      if [ -f /cvmfs/software.eessi.io/versions/2023.06/init/bash ]; then
+      #if [ -f /cvmfs/software.eessi.io/versions/2023.06/init/bash ]; then
+      if timeout 3 stat /cvmfs/software.eessi.io/versions/2023.06/init/bash > /dev/null 2>&1; then
           export PS1_BEFORE_EESSI=${PS1}
           # disable the current modules env
           unset-modules-env
           # load EESSI
           source /cvmfs/software.eessi.io/versions/2023.06/init/bash
+      else
+          echo "CMVFS share /cvmfs/software.eessi.io not mounted"
       fi
     }
 
