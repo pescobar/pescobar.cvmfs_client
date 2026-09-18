@@ -3,25 +3,38 @@
 - name: Deploy cvmfs client
   block:
 
-    - name: Add key for the cvmfs apt repository
-      ansible.builtin.get_url:
-        url: "{{ cvmfs_client_apt_repo_url }}/cernvm.gpg"
-        dest: /etc/apt/trusted.gpg.d/cvmfs.gpg
-        mode: '0644'
-        force: true
+    - name: Install python3-debian (required by deb822_repository)
+      ansible.builtin.apt:
+        name: python3-debian
+        cache_valid_time: 600
+
+    # hosts configured by older versions of this role have a one-line .list
+    # file and the key in trusted.gpg.d; apt refuses a repo defined twice with
+    # different Signed-By values
+    - name: Remove the old one-line cvmfs apt source and key
+      ansible.builtin.file:
+        path: "{{ item }}"
+        state: absent
+      loop:
+        - /etc/apt/sources.list.d/cvmfs.list
+        - /etc/apt/trusted.gpg.d/cvmfs.gpg
 
     - name: Configure cvmfs apt repository
-      ansible.builtin.apt_repository:
-        repo: "deb {{ cvmfs_client_apt_repo_url }} {{ ansible_distribution_release }}-prod main"
-        filename: "cvmfs"
-        state: present
+      ansible.builtin.deb822_repository:
+        name: cvmfs
+        uris: "{{ cvmfs_client_apt_repo_url }}"
+        suites: "{{ ansible_facts['distribution_release'] }}-prod"
+        components: main
+        signed_by: "{{ cvmfs_client_apt_repo_url }}/cernvm.gpg"
+      register: _cvmfs_apt_repo
 
+    # deb822_repository does not refresh the apt cache itself
     - name: Install the cvmfs client
       ansible.builtin.apt:
         name:
           - autofs
           - cvmfs
-        cache_valid_time: 600
+        update_cache: "{{ _cvmfs_apt_repo is changed }}"
 
     - name: Deploy /etc/cvmfs/default.local
       ansible.builtin.copy:
