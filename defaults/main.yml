@@ -22,6 +22,10 @@ cvmfs_client_default_config: |
   #CVMFS_STRICT_MOUNT="yes"
 
 
+# EESSI ships several versions under /cvmfs/software.eessi.io/versions/;
+# this is the one enable-software-stack-eessi sources
+cvmfs_client_eessi_version: "2025.06"
+
 cvmfs_client_soft_stacks_config: |
   # ansible managed
 
@@ -80,13 +84,13 @@ cvmfs_client_soft_stacks_config: |
     }
 
   enable-software-stack-eessi () {
-      #if [ -f /cvmfs/software.eessi.io/versions/2023.06/init/bash ]; then
-      if timeout 3 stat /cvmfs/software.eessi.io/versions/2023.06/init/bash > /dev/null 2>&1; then
+      #if [ -f /cvmfs/software.eessi.io/versions/{{ cvmfs_client_eessi_version }}/init/bash ]; then
+      if timeout 3 stat /cvmfs/software.eessi.io/versions/{{ cvmfs_client_eessi_version }}/init/bash > /dev/null 2>&1; then
           export PS1_BEFORE_EESSI=${PS1}
           # disable the current modules env
           unset-modules-env
           # load EESSI
-          source /cvmfs/software.eessi.io/versions/2023.06/init/bash
+          source /cvmfs/software.eessi.io/versions/{{ cvmfs_client_eessi_version }}/init/bash
       else
           echo "CMVFS share /cvmfs/software.eessi.io not mounted"
       fi
